@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outer Wilds - Signalscope Interface</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+        :root {
+            --bg-space: #0b0c15;
+            --hud-green: #59dca6; /* 信号镜的绿色 */
+            --hud-orange: #ff8c40; /* 危险/重点色 */
+            --hud-dim: rgba(89, 220, 166, 0.2);
+            --wood: #5c4033;
+            --tape: #a8a8a8;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-space);
+            font-family: 'Courier Prime', monospace;
+            color: var(--hud-green);
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* 背景星空 */
+        #starfield {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        /* 主设备容器 */
+        .device-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: #1a1a1a;
+            border-radius: 20px;
+            z-index: 10;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border: 8px solid #2a2a2a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 木质装饰板 (Hearthian Tech) */
+        .wood-panel {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 120px;
+            background: 
+                repeating-linear-gradient(90deg, #5c4033 0, #4a332a 2px, #5c4033 4px),
+                linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.8));
+            border-top: 4px solid #333;
+            z-index: 20;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        /* 强力胶带装饰 */
+        .duct-tape {
+            position: absolute;
+            width: 60px; height: 120px;
+            background: #999;
+            transform: rotate(-5deg);
+            opacity: 0.8;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            bottom: -20px; right: 50px;
+            z-index: 25;
+            border-left: 1px solid #bbb;
+            border-right: 1px solid #777;
+        }
+
+        /* 屏幕区域 */
+        .screen-frame {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle, #112211 0%, #000500 100%);
+            overflow: hidden;
+            border-radius: 12px 12px 0 0;
+        }
+
+        /* CRT 扫描线特效 */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .crt-flicker {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(89, 220, 166, 0.02);
+            opacity: 0;
+            animation: flicker 0.15s infinite;
+            pointer-events: none;
+            z-index: 6;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.01; }
+            50% { opacity: 0.05; }
+            100% { opacity: 0.01; }
+        }
+
+        /* UI 元素 */
+        .hud-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 4;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .signal-strength {
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .bar-container {
+            width: 150px;
+            height: 10px;
+            border: 1px solid var(--hud-green);
+            padding: 2px;
+        }
+        .bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--hud-green);
+            transition: width 0.1s;
+            box-shadow: 0 0 10px var(--hud-green);
+        }
+
+        /* 太阳监测站 */
+        .sun-station {
+            text-align: right;
+        }
+        .sun-timer {
+            font-size: 12px;
+            color: var(--hud-orange);
+            margin-bottom: 5px;
+        }
+        .sun-circle {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ffcc00, #ff8c40);
+            display: inline-block;
+            box-shadow: 0 0 20px #ff8c40;
+            animation: pulseSun 4s infinite ease-in-out;
+            transition: all 1s;
+        }
+
+        @keyframes pulseSun {
+            0% { transform: scale(1); box-shadow: 0 0 20px #ff8c40; }
+            50% { transform: scale(1.1); box-shadow: 0 0 40px #ff4500; }
+            100% { transform: scale(1); box-shadow: 0 0 20px #ff8c40; }
+        }
+
+        /* 示波器画布 */
+        #scope-canvas {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px solid var(--hud-dim);
+            border-radius: 50%;
+            background: rgba(0, 10, 0, 0.3);
+            cursor: crosshair;
+        }
+
+        /* 飞船日志卡片 */
+        .ship-log {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border: 1px solid var(--hud-orange);
+            color: var(--hud-orange);
+        }
+
+        .controls-hint {
+            color: #dcbfa6;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* 旋钮样式 */
+        .knob {
+            width: 60px; height: 60px;
+            background: #333;
+            border-radius: 50%;
+            border: 2px solid #111;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1), 0 5px 10px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .knob::after {
+            content: '';
+            width: 10px; height: 10px;
+            background: #888;
+            border-radius: 50%;
+            margin-top: -30px;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="starfield"></canvas>
+
+    <div class="device-container">
+        <div class="screen-frame">
+            <div class="scanlines"></div>
+            <div class="crt-flicker"></div>
+            
+            <div class="hud-overlay">
+                <div class="top-bar">
+                    <div class="signal-strength">
+                        <span>SIGNAL MATCH</span>
+                        <div class="bar-container">
+                            <div class="bar-fill" id="match-bar"></div>
+                        </div>
+                        <span id="freq-text" style="font-size:10px; opacity:0.7">00.00 Hz</span>
+                    </div>
+
+                    <div class="sun-station">
+                        <div class="sun-timer" id="time-display">T-MINUS 22:00</div>
+                        <div class="sun-circle" id="sun"></div>
+                    </div>
+                </div>
+
+                <div class="ship-log" id="log-card">
+                    <h3 id="log-title" style="margin:5px 0; border-bottom: 1px solid orange;">UNKNOWN SIGNAL</h3>
+                    <p id="log-desc" style="font-size: 14px; margin: 5px 0;">Identifying source...</p>
+                </div>
+            </div>
+
+            <canvas id="scope-canvas" width="400" height="400"></canvas>
+        </div>
+
+        <div class="wood-panel">
+            <div style="text-align:center">
+                <div class="knob" style="transform: rotate(-45deg);"></div>
+                <div class="controls-hint" style="margin-top:5px;">Frequency (X)</div>
+            </div>
+            
+            <div style="text-align:center; flex:1; padding: 0 20px;">
+                <p class="controls-hint" style="color: #fff; font-weight: bold;">OUTER WILDS VENTURES</p>
+                <p class="controls-hint" style="font-size: 10px; opacity: 0.7;">Prototype Signalscope v0.9</p>
+                <p class="controls-hint" style="color: var(--hud-green); margin-top:10px;">Move Mouse to Tune</p>
+            </div>
+
+            <div style="text-align:center">
+                <div class="knob" style="transform: rotate(45deg);"></div>
+                <div class="controls-hint" style="margin-top:5px;">Amplitude (Y)</div>
+            </div>
+            
+            <div class="duct-tape"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 星空背景 ---
+        const starCanvas = document.getElementById('starfield');
+        const starCtx = starCanvas.getContext('2d');
+        
+        function resizeStars() {
+            starCanvas.width = window.innerWidth;
+            starCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeStars);
+        resizeStars();
+
+        const stars = [];
+        for(let i=0; i<200; i++) {
+            stars.push({
+                x: Math.random() * starCanvas.width,
+                y: Math.random() * starCanvas.height,
+                size: Math.random() * 2,
+                speed: Math.random() * 0.2
+            });
+        }
+
+        function drawStars() {
+            starCtx.fillStyle = '#0b0c15';
+            starCtx.fillRect(0, 0, starCanvas.width, starCanvas.height);
+            starCtx.fillStyle = 'white';
+            
+            stars.forEach(star => {
+                starCtx.beginPath();
+                starCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                starCtx.fill();
+                star.y -= star.speed; // 向上移动，模拟飞船下潜或抬头
+                if(star.y < 0) star.y = starCanvas.height;
+            });
+            requestAnimationFrame(drawStars);
+        }
+        drawStars();
+
+        // --- 2. 信号镜逻辑 ---
+        const scopeCanvas = document.getElementById('scope-canvas');
+        const ctx = scopeCanvas.getContext('2d');
+        const matchBar = document.getElementById('match-bar');
+        const freqText = document.getElementById('freq-text');
+        const logCard = document.getElementById('log-card');
+        const logTitle = document.getElementById('log-title');
+        const logDesc = document.getElementById('log-desc');
+        const sunElem = document.getElementById('sun');
+
+        // 游戏状态
+        let mouseX = 0;
+        let mouseY = 0;
+        let currentSignalIndex = 0;
+        let isLocked = false;
+        let lockTimer = 0;
+
+        // 定义几个可发现的信号
+        const signals = [
+            {
+                name: "TIMBER HEARTH",
+                desc: "Detected banjo music. It's Riebeck's old recording. Home, sweet home.",
+                targetFreq: 0.3, // X轴位置对应频率
+                targetAmp: 0.5,  // Y轴位置对应振幅
+                color: "#59dca6", // Hearthian Green
+                shape: "planet"
+            },
+            {
+                name: "OUTER WILDS VENTURES",
+                desc: "Harmonica signal identified. Esker is lonely on the Attlerock.",
+                targetFreq: 0.7,
+                targetAmp: 0.3,
+                color: "#ffda57", // Moon Yellow
+                shape: "moon"
+            },
+            {
+                name: "UNKNOWN SIGNAL",
+                desc: "Quantum fluctuations detected. It keeps moving when I don't look.",
+                targetFreq: 0.5,
+                targetAmp: 0.8,
+                color: "#a3a7ff", // Quantum Purple
+                shape: "quantum"
+            },
+            {
+                name: "DISTRESS BEACON",
+                desc: "Vessel coordinates found. Dark Bramble proximity alert.",
+                targetFreq: 0.8,
+                targetAmp: 0.7,
+                color: "#ff5555", // Warning Red
+                shape: "bramble"
+            }
+        ];
+
+        // 监听鼠标
+        document.addEventListener('mousemove', (e) => {
+            const rect = scopeCanvas.getBoundingClientRect();
+            // 归一化 0.0 - 1.0
+            mouseX = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+            mouseY = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+        });
+
+        let time = 0;
+
+        function drawScope() {
+            ctx.clearRect(0, 0, scopeCanvas.width, scopeCanvas.height);
+            time += 0.1;
+
+            const w = scopeCanvas.width;
+            const h = scopeCanvas.height;
+            const centerY = h / 2;
+
+            // 1. 绘制网格线
+            ctx.strokeStyle = "rgba(89, 220, 166, 0.1)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i=0; i<w; i+=40) { ctx.moveTo(i, 0); ctx.lineTo(i, h); }
+            for(let i=0; i<h; i+=40) { ctx.moveTo(0, i); ctx.lineTo(w, i); }
+            ctx.stroke();
+
+            // 2. 绘制目标信号（隐约可见的幽灵波）
+            const target = signals[currentSignalIndex];
+            
+            // 3. 绘制用户调谐波
+            // 频率由 mouseX 控制，振幅由 mouseY 控制
+            // 为了增加游戏性，反转Y轴，让上面是高振幅
+            const userAmp = (1 - mouseY) * 100; 
+            const userFreq = 0.02 + (mouseX * 0.1);
+
+            ctx.beginPath();
+            ctx.strokeStyle = target.color;
+            ctx.lineWidth = 3;
+            
+            // 抖动效果 (Noise)
+            const noise = isLocked ? 0 : (Math.random() - 0.5) * 10;
+
+            for (let x = 0; x < w; x++) {
+                const y = centerY + Math.sin(x * userFreq + time) * userAmp + noise;
+                if(x===0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // 4. 计算匹配度
+            // 简单的距离检查
+            const freqDiff = Math.abs(mouseX - target.targetFreq);
+            const ampDiff = Math.abs((1-mouseY) - target.targetAmp);
+            const totalDiff = freqDiff + ampDiff;
+
+            // 匹配阈值
+            let matchPercent = Math.max(0, 100 - (totalDiff * 300));
+            if (matchPercent > 100) matchPercent = 100;
+            
+            matchBar.style.width = matchPercent + "%";
+            freqText.innerText = `${(userFreq * 1000).toFixed(2)} Hz`;
+
+            // 5. 锁定逻辑
+            if (matchPercent > 90) {
+                lockTimer++;
+                // 绘制“重影”目标波形以示对齐
+                ctx.beginPath();
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.lineWidth = 1;
+                for (let x = 0; x < w; x++) {
+                    // 目标公式
+                    const tFreq = 0.02 + (target.targetFreq * 0.1);
+                    const tAmp = target.targetAmp * 100;
+                    const y = centerY + Math.sin(x * tFreq + time) * tAmp;
+                    if(x===0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                if (lockTimer > 60) { // 锁定持续 1秒
+                    isLocked = true;
+                    drawTargetShape(target); // 绘制星球
+                    showLog(target);
+                }
+            } else {
+                lockTimer = 0;
+                isLocked = false;
+                hideLog();
+            }
+
+            requestAnimationFrame(drawScope);
+        }
+
+        // 绘制线性风格的星球
+        function drawTargetShape(target) {
+            const cx = scopeCanvas.width / 2;
+            const cy = scopeCanvas.height / 2;
+            
+            ctx.save();
+            ctx.strokeStyle = target.color;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = target.color;
+
+            if (target.shape === 'planet') {
+                ctx.beginPath();
+                ctx.arc(cx, cy, 50, 0, Math.PI*2); // 星球
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy, 80, 0, Math.PI, false); // 简单的环
+                ctx.stroke();
+            } else if (target.shape === 'moon') {
+                ctx.beginPath();
+                ctx.arc(cx, cy, 40, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx - 20, cy - 10, 10, 0, Math.PI*2); // 陨石坑
+                ctx.stroke();
+            } else if (target.shape === 'quantum') {
+                // 量子碎片 - 随机绘制多边形，每帧变化一点点
+                ctx.beginPath();
+                const sides = 6;
+                for(let i=0; i<=sides; i++) {
+                    const angle = i * 2 * Math.PI / sides + time * 0.5;
+                    const r = 60 + Math.random() * 10;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if(i===0) ctx.moveTo(x,y);
+                    else ctx.lineTo(x,y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else if (target.shape === 'bramble') {
+                // 荆棘
+                for(let i=0; i<8; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    const angle = (i / 8) * Math.PI * 2;
+                    const len = 80;
+                    const x = cx + Math.cos(angle) * len;
+                    const y = cy + Math.sin(angle) * len;
+                    // 贝塞尔曲线画刺
+                    ctx.quadraticCurveTo(cx + Math.cos(angle+0.5)*40, cy + Math.sin(angle+0.5)*40, x, y);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+            
+            // 绘制文字 SCANNING COMPLETE
+            ctx.fillStyle = target.color;
+            ctx.font = "16px Courier New";
+            ctx.fillText("SIGNAL IDENTIFIED", cx - 70, cy + 100);
+        }
+
+        function showLog(target) {
+            logCard.style.opacity = 1;
+            logCard.style.borderColor = target.color;
+            logCard.style.color = target.color;
+            logTitle.innerText = target.name;
+            logDesc.innerText = target.desc;
+        }
+
+        function hideLog() {
+            logCard.style.opacity = 0;
+            // 简单的逻辑切换下一个信号，当用户完全移开时
+            if(Math.abs(mouseX - signals[currentSignalIndex].targetFreq) > 0.3) {
+                 // 实际游戏不会这样简单切换，这里为了演示方便
+                 // 保持当前索引，或者添加按键切换
+            }
+        }
+        
+        // 点击切换信号源 (模拟换频段)
+        document.body.addEventListener('click', () => {
+            currentSignalIndex = (currentSignalIndex + 1) % signals.length;
+            // 视觉反馈
+            scopeCanvas.style.background = "rgba(255, 255, 255, 0.1)";
+            setTimeout(() => {
+                scopeCanvas.style.background = "rgba(0, 10, 0, 0.3)";
+            }, 100);
+            
+            // 重置
+            isLocked = false;
+            lockTimer = 0;
+            logTitle.innerText = "TUNING...";
+            logDesc.innerText = "Switching Frequency Band...";
+            logCard.style.opacity = 1;
+            setTimeout(() => { if(!isLocked) logCard.style.opacity = 0; }, 1000);
+        });
+
+        drawScope();
+
+        // --- 3. 太阳倒计时逻辑 (Supernova Simulation) ---
+        let sunTime = 0;
+        const totalTime = 60; // 演示用 60秒
+        
+        setInterval(() => {
+            sunTime++;
+            const remaining = totalTime - sunTime;
+            
+            if (remaining >= 0) {
+                document.getElementById('time-display').innerText = `T-MINUS 00:${remaining < 10 ? '0'+remaining : remaining}`;
+                
+                // 太阳变化
+                const progress = sunTime / totalTime;
+                // 颜色从黄变红
+                const red = 255;
+                const green = Math.floor(204 * (1 - progress)); // 变少
+                const blue = 0;
+                sunElem.style.background = `radial-gradient(circle, rgb(${red},${green},${blue}), rgb(${red}, ${Math.max(0, green-50)}, 0))`;
+                
+                // 大小变化
+                const scale = 1 + (progress * 1.5);
+                sunElem.style.transform = `scale(${scale})`;
+            } else {
+                // 超新星爆发
+                document.getElementById('time-display').innerText = "END OF CYCLE";
+                document.body.style.background = "#fff";
+                document.querySelector('.device-container').style.filter = "brightness(100) contrast(0)";
+                setTimeout(() => {
+                    location.reload(); // 循环重启
+                }, 2000);
+            }
+        }, 1000);
+
+    </script>
+</body>
+</html>
